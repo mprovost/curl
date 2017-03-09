@@ -49,6 +49,7 @@
 #define PORT_RTMPT PORT_HTTP
 #define PORT_RTMPS PORT_HTTPS
 #define PORT_GOPHER 70
+#define PORT_NFS 2049
 
 #define DICT_MATCH "/MATCH:"
 #define DICT_MATCH2 "/M:"
@@ -181,6 +182,7 @@
 #include "http.h"
 #include "rtsp.h"
 #include "smb.h"
+#include "nfs.h"
 #include "wildcard.h"
 #include "multihandle.h"
 
@@ -1110,6 +1112,7 @@ struct connectdata {
     struct smtp_conn smtpc;
     struct rtsp_conn rtspc;
     struct smb_conn smbc;
+    struct nfs_conn nfsc;
     void *generic; /* RTMP and LDAP use this */
   } proto;
 

@@ -119,6 +119,7 @@ bool curl_win32_idn_to_ascii(const char *in, char **out);
 #include "pipeline.h"
 #include "dotdot.h"
 #include "strdup.h"
+#include "nfs.h"
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
 #include "curl_memory.h"
@@ -228,6 +229,10 @@ static const struct Curl_handler * const protocols[] = {
 
 #ifndef CURL_DISABLE_GOPHER
   &Curl_handler_gopher,
+#endif
+
+#ifndef CURL_DISABLE_NFS
+  &Curl_handler_nfs,
 #endif
 
 #ifdef USE_LIBRTMP
