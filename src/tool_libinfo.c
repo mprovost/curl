@@ -61,6 +61,7 @@ CURLcode get_libcurl_info(void)
     { "imaps",  CURLPROTO_IMAPS  },
     { "ldap",   CURLPROTO_LDAP   },
     { "ldaps",  CURLPROTO_LDAPS  },
+    { "nfs",    CURLPROTO_NFS    },
     { "pop3",   CURLPROTO_POP3   },
     { "pop3s",  CURLPROTO_POP3S  },
     { "rtmp",   CURLPROTO_RTMP   },
