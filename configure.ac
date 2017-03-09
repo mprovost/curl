@@ -628,6 +628,21 @@ AC_HELP_STRING([--disable-gopher],[Disable Gopher support]),
        AC_MSG_RESULT(yes)
 )
 
+AC_MSG_CHECKING([whether to support nfs])
+AC_ARG_ENABLE(nfs,
+AC_HELP_STRING([--enable-nfs],[Enable NFS support])
+AC_HELP_STRING([--disable-nfs],[Disable NFS support]),
+[ case "$enableval" in
+  no)
+       AC_MSG_RESULT(no)
+       AC_DEFINE(CURL_DISABLE_NFS, 1, [to disable NFS])
+       AC_SUBST(CURL_DISABLE_NFS, [1])
+       ;;
+  *)   AC_MSG_RESULT(yes)
+       ;;
+  esac ],
+       AC_MSG_RESULT(yes)
+)
 
 dnl **********************************************************************
 dnl Check for built-in manual
@@ -3845,6 +3860,9 @@ if test "x$CURL_DISABLE_RTSP" != "x1"; then
 fi
 if test "x$USE_LIBRTMP" = "x1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS RTMP"
+fi
+if test "x$CURL_DISABLE_NFS" != "x1"; then
+  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS NFS"
 fi
 
 dnl replace spaces with newlines
