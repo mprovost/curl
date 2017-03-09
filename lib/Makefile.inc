@@ -74,7 +74,14 @@ LIB_HFILES = arpa_telnet.h netrc.h file.h timeval.h hostip.h progress.h \
   x509asn1.h http2.h sigpipe.h smb.h curl_endian.h curl_des.h           \
   curl_printf.h system_win32.h rand.h
 
+LIB_XDR_CFILES = xdr/mount_xdr.c xdr/mount_clnt.c xdr/nfs_prot_clnt.c   \
+  xdr/nfs_prot_xdr.c
+
+LIB_XDR_HFILES = xdr/mount.h xdr/nfs_prot.h
+
 LIB_RCFILES = libcurl.rc
 
-CSOURCES = $(LIB_CFILES) $(LIB_VAUTH_CFILES) $(LIB_VTLS_CFILES)
-HHEADERS = $(LIB_HFILES) $(LIB_VAUTH_HFILES) $(LIB_VTLS_HFILES)
+CSOURCES = $(LIB_CFILES) $(LIB_VAUTH_CFILES) $(LIB_VTLS_CFILES) \
+  $(LIB_XDR_CFILES)
+HHEADERS = $(LIB_HFILES) $(LIB_VAUTH_HFILES) $(LIB_VTLS_HFILES) \
+  $(LIB_XDR_HFILES)
