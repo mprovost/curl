@@ -90,6 +90,8 @@
 #endif
 
 static CURLcode nfs_connect(struct connectdata *conn, bool *done);
+static char *nfs_fh3_to_string(nfs_fh3);
+static CURLcode nfs_do(struct connectdata *conn, bool *done);
 static int nfs_bindresvport(void *, curl_socket_t, curlsocktype);
 static CURLcode nfs_setup_connection(struct connectdata * conn);
 
@@ -101,7 +103,7 @@ static CURLcode nfs_setup_connection(struct connectdata * conn);
 const struct Curl_handler Curl_handler_nfs = {
   "NFS",                           /* scheme */
   nfs_setup_connection,            /* setup_connection */
-  ZERO_NULL,                       /* do_it */
+  nfs_do,                          /* do_it */
   ZERO_NULL,                       /* done */
   ZERO_NULL,                       /* do_more */
   nfs_connect,                     /* connect_it */
@@ -156,6 +158,9 @@ static CURLcode nfs_connect(struct connectdata *conn,
     result = CURLE_COULDNT_CONNECT;
   }
 
+  /* ping */
+  status = nfsproc3_null_3(NULL, nfsc->nfs_client);
+
   /* now connect to the same server on the MOUNT port */
 
   /* use the portmapper */
@@ -180,6 +185,7 @@ static CURLcode nfs_connect(struct connectdata *conn,
     ntohs(sai.sin_port));
   */
 
+  /* ping */
   status = mountproc_null_3(NULL, nfsc->mount_client);
 
   if(status) {
@@ -210,7 +216,7 @@ static CURLcode nfs_setup_connection(struct connectdata *conn)
   struct nfs_conn *nfsc = &conn->proto.nfsc;
   struct NFS *nfs;
 
-  conn->data->req.protop = nfs = malloc(sizeof(struct NFS));
+  conn->data->req.protop = nfs = calloc(1, sizeof(struct NFS));
   if(NULL == nfs)
     return CURLE_OUT_OF_MEMORY;
 
@@ -219,6 +225,60 @@ static CURLcode nfs_setup_connection(struct connectdata *conn)
     data, CURLOPT_SOCKOPTFUNCTION, nfs_bindresvport);
 
   return CURLE_OK;
+}
+
+/* convert an NFS filehandle to a string */
+char *nfs_fh3_to_string(nfs_fh3 file_handle)
+{
+    unsigned int i;
+    /* allocate space for output string */
+    /* 2 characters per byte plus NULL */
+    char *str = calloc((file_handle.data.data_len * 2) + 1, sizeof(char));
+
+    for(i = 0; i < file_handle.data.data_len; i++) {
+        /* each input byte is two output bytes (in hex) */
+        /* plus terminating NUL */
+        snprintf(&str[i * 2], 3, "%02hhx", file_handle.data.data_val[i]);
+    }
+
+    /* terminating NUL */
+    str[i * 2] = '\0';
+
+    return str;
+}
+
+/* lookup the filehandle */
+CURLcode nfs_do(struct connectdata *conn, bool *done)
+{
+  CURLcode result = CURLE_OK;
+  struct nfs_conn *nfsc = &conn->proto.nfsc;
+  struct Curl_easy *data = conn->data;
+  char *path = data->state.path;
+  mountres3 *mountres = NULL;
+  char *fhs;
+
+  printf("path = %s\n", path);
+
+  mountres = mountproc_mnt_3(&path, nfsc->mount_client);
+
+  if(mountres && (mountres->fhs_status == MNT3_OK)) {
+    /* copy the resulting filehandle */
+    nfsc->fh.data.data_val = calloc(
+      mountres->mountres3_u.mountinfo.fhandle.fhandle3_len, sizeof(char));
+    memcpy(nfsc->fh.data.data_val,
+      mountres->mountres3_u.mountinfo.fhandle.fhandle3_val,
+      mountres->mountres3_u.mountinfo.fhandle.fhandle3_len);
+    nfsc->fh.data.data_len =
+      mountres->mountres3_u.mountinfo.fhandle.fhandle3_len;
+    /* free the handle in the client */
+    /* clnt_freeres(nfsc->mount_client,
+      (xdrproc_t) xdr_mountres3, (caddr_t) mountres); */
+
+    fhs = nfs_fh3_to_string(nfsc->fh);
+    printf("fh = %s\n", fhs);
+  }
+
+  return result;
 }
 
 #endif /* CURL_DISABLE_NFS */

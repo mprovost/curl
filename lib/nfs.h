@@ -35,6 +35,7 @@ extern const struct Curl_handler Curl_handler_nfs;
 struct nfs_conn {
   CLIENT *nfs_client; /* NFS protocol client */
   CLIENT *mount_client; /* MOUNT protocol client */
+  struct nfs_fh3 fh; /* NFS filehandle */
 };
 
 /* This NFS struct is used in the Curl_easy. All NFS data that is
