@@ -90,6 +90,7 @@
 #endif
 
 static CURLcode nfs_connect(struct connectdata *conn, bool *done);
+static int nfs_bindresvport(void *, curl_socket_t, curlsocktype);
 static CURLcode nfs_setup_connection(struct connectdata * conn);
 
 
@@ -129,15 +130,76 @@ const struct Curl_handler Curl_handler_nfs = {
 static CURLcode nfs_connect(struct connectdata *conn,
                                  bool *done) /* see description above */
 {
-  CURLcode result;
+  CURLcode result = CURLE_COULDNT_CONNECT;
   struct nfs_conn *nfsc = &conn->proto.nfsc;
-
+  struct sockaddr_in sai;
+  struct sockaddr_in getaddr; /* for getsockname */
+  socklen_t len = sizeof(getaddr);
+  curl_socklen_t size = (curl_socklen_t) sizeof(sai);
   *done = FALSE; /* default to not done yet */
+  int sock = conn->sock[FIRSTSOCKET];
+  void *status = NULL;
+
+  if(0 == getsockname(
+    conn->sock[FIRSTSOCKET], (struct sockaddr *) &sai, &size)) {
+    size = sizeof(sai);
+  }
 
   /* We always support persistent connections on NFS */
   connkeep(conn, "NFS default");
 
+  /* connect to NFS */
+  nfsc->nfs_client = clnttcp_create(
+    &sai, NFS3_PROGRAM, 3, &sock, 0, 0);
+
+  if(nfsc->nfs_client == NULL) {
+    result = CURLE_COULDNT_CONNECT;
+  }
+
+  /* now connect to the same server on the MOUNT port */
+
+  /* use the portmapper */
+  sai.sin_port = 0;
+
+  /* conn->sock[SECONDARYSOCKET] = socket(AF_INET, SOCK_STREAM, 0); */
+
+  sock = conn->sock[SECONDARYSOCKET];
+
+  /* bindresvport(sock, NULL); */
+
+  nfsc->mount_client = clnttcp_create(
+    &sai, MOUNTPROG, MOUNTVERS3, &sock, 0, 0);
+
+  if(nfsc->mount_client == NULL) {
+    result = CURLE_COULDNT_CONNECT;
+  }
+
+  /*
+  getsockname(sock, (struct sockaddr *)&getaddr, &len);
+  printf("getsockname = %u -> %u\n", ntohs(getaddr.sin_port),
+    ntohs(sai.sin_port));
+  */
+
+  status = mountproc_null_3(NULL, nfsc->mount_client);
+
+  if(status) {
+    result = CURLE_OK;
+  }
+
   return result;
+}
+
+/* callback to call bindresvport() */
+int nfs_bindresvport(void *clientp,
+                     curl_socket_t curlfd,
+                     curlsocktype purpose)
+{
+  if(bindresvport((int) curlfd, NULL) == 0) {
+    return CURL_SOCKOPT_OK;
+  }
+  else {
+    return CURL_SOCKOPT_ERROR;
+  }
 }
 
 static CURLcode nfs_setup_connection(struct connectdata *conn)
@@ -145,16 +207,16 @@ static CURLcode nfs_setup_connection(struct connectdata *conn)
   struct Curl_easy *data = conn->data;
   char *type;
   char command;
-  struct FTP *ftp;
+  struct nfs_conn *nfsc = &conn->proto.nfsc;
+  struct NFS *nfs;
 
-  conn->data->req.protop = ftp = malloc(sizeof(struct FTP));
-  if(NULL == ftp)
+  conn->data->req.protop = nfs = malloc(sizeof(struct NFS));
+  if(NULL == nfs)
     return CURLE_OUT_OF_MEMORY;
 
-  /* get some initial data into the ftp struct */
-  ftp->bytecountp = &conn->data->req.bytecount;
-  ftp->transfer = FTPTRANSFER_BODY;
-  ftp->downloadsize = 0;
+  /* make sure we connect from a "secure" port */
+  curl_easy_setopt(
+    data, CURLOPT_SOCKOPTFUNCTION, nfs_bindresvport);
 
   return CURLE_OK;
 }
