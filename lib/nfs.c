@@ -264,60 +264,66 @@ CURLcode nfs_do(struct connectdata *conn, bool *done)
 
   mountres = mountproc_mnt_3(&path, nfsc->mount_client);
 
-  if(mountres && (mountres->fhs_status == MNT3_OK)) {
-    /* copy the resulting filehandle */
-    nfsc->fh.data.data_val = calloc(
-      mountres->mountres3_u.mountinfo.fhandle.fhandle3_len, sizeof(char));
-    memcpy(nfsc->fh.data.data_val,
-      mountres->mountres3_u.mountinfo.fhandle.fhandle3_val,
-      mountres->mountres3_u.mountinfo.fhandle.fhandle3_len);
-    nfsc->fh.data.data_len =
-      mountres->mountres3_u.mountinfo.fhandle.fhandle3_len;
-    /* free the handle in the client */
-    clnt_freeres(nfsc->mount_client,
-      (xdrproc_t) xdr_mountres3, (caddr_t) mountres);
+  if(mountres) {
+    if(mountres->fhs_status == MNT3_OK) {
+      /* copy the resulting filehandle */
+      nfsc->fh.data.data_val = calloc(
+        mountres->mountres3_u.mountinfo.fhandle.fhandle3_len, sizeof(char));
+      memcpy(nfsc->fh.data.data_val,
+        mountres->mountres3_u.mountinfo.fhandle.fhandle3_val,
+        mountres->mountres3_u.mountinfo.fhandle.fhandle3_len);
+      nfsc->fh.data.data_len =
+        mountres->mountres3_u.mountinfo.fhandle.fhandle3_len;
+      /* free the handle in the client */
+      clnt_freeres(nfsc->mount_client,
+        (xdrproc_t) xdr_mountres3, (caddr_t) mountres);
 
-    /* start at the beginning of the file */
-    nfsc->offset = 0;
-  }
+      /* read the file */
+      args.file = nfsc->fh;
+      /* start at the beginning of the file */
+      args.offset = 0;
+      args.count = 16384;
 
-  /* read the file */
-  args.file = nfsc->fh;
-  args.count = 16384;
+      do
+      {
+        args.offset = nfsc->offset;
 
-  do
-  {
-    args.offset = nfsc->offset;
+        res = nfsproc3_read_3(&args, nfsc->nfs_client);
 
-    res = nfsproc3_read_3(&args, nfsc->nfs_client);
+        if(res) {
+          if(res->status == NFS3_OK) {
+            /* write output */
+            Curl_client_write(conn, CLIENTWRITE_BODY,
+              res->READ3res_u.resok.data.data_val,
+              res->READ3res_u.resok.data.data_len);
 
-    if(res) {
-      if(res->status == NFS3_OK) {
-        /* write output */
-        Curl_client_write(conn, CLIENTWRITE_BODY,
-          res->READ3res_u.resok.data.data_val,
-          res->READ3res_u.resok.data.data_len);
+            nfsc->offset += res->READ3res_u.resok.count;
 
-        nfsc->offset += res->READ3res_u.resok.count;
+            Curl_pgrsSetDownloadCounter(data,
+              (curl_off_t) nfsc->offset);
 
-        Curl_pgrsSetDownloadCounter(data,
-          (curl_off_t) nfsc->offset);
+            if(res->READ3res_u.resok.eof) {
+              *done = TRUE;
+              Curl_pgrsDone(conn);
+            }
+            else {
+              Curl_pgrsUpdate(conn);
+            }
 
-        if(res->READ3res_u.resok.eof) {
-          *done = TRUE;
-          Curl_pgrsDone(conn);
+            /* free memory in the client */
+            clnt_freeres(nfsc->nfs_client,
+              (xdrproc_t) xdr_READ3res, (caddr_t) res);
+          }
         }
-        else {
-          Curl_pgrsUpdate(conn);
-        }
-
-        /* free memory in the client */
-        clnt_freeres(nfsc->nfs_client,
-          (xdrproc_t) xdr_READ3res, (caddr_t) res);
+      }
+      while(res && res->status == NFS3_OK && res->READ3res_u.resok.eof == 0);
+    }
+    else {
+      if(mountres->fhs_status == MNT3ERR_NOENT) {
+        result = CURLE_REMOTE_FILE_NOT_FOUND;
       }
     }
   }
-  while(res && res->status == NFS3_OK && res->READ3res_u.resok.eof == 0);
 
   return result;
 }
