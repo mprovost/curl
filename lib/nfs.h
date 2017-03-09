@@ -36,6 +36,7 @@ struct nfs_conn {
   CLIENT *nfs_client; /* NFS protocol client */
   CLIENT *mount_client; /* MOUNT protocol client */
   struct nfs_fh3 fh; /* NFS filehandle */
+  offset3 offset; /* offset into file */
 };
 
 /* This NFS struct is used in the Curl_easy. All NFS data that is

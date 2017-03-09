@@ -92,6 +92,7 @@
 static CURLcode nfs_connect(struct connectdata *conn, bool *done);
 static char *nfs_fh3_to_string(nfs_fh3);
 static CURLcode nfs_do(struct connectdata *conn, bool *done);
+static CURLcode nfs_doing(struct connectdata *conn, bool *dophase_done);
 static int nfs_bindresvport(void *, curl_socket_t, curlsocktype);
 static CURLcode nfs_setup_connection(struct connectdata * conn);
 
@@ -108,7 +109,7 @@ const struct Curl_handler Curl_handler_nfs = {
   ZERO_NULL,                       /* do_more */
   nfs_connect,                     /* connect_it */
   ZERO_NULL,                       /* connecting */
-  ZERO_NULL,                       /* doing */
+  nfs_doing,                       /* doing */
   ZERO_NULL,                       /* proto_getsock */
   ZERO_NULL,                       /* doing_getsock */
   ZERO_NULL,                       /* domore_getsock */
@@ -136,7 +137,6 @@ static CURLcode nfs_connect(struct connectdata *conn,
   struct nfs_conn *nfsc = &conn->proto.nfsc;
   struct sockaddr_in sai;
   struct sockaddr_in getaddr; /* for getsockname */
-  socklen_t len = sizeof(getaddr);
   curl_socklen_t size = (curl_socklen_t) sizeof(sai);
   *done = FALSE; /* default to not done yet */
   int sock = conn->sock[FIRSTSOCKET];
@@ -271,11 +271,49 @@ CURLcode nfs_do(struct connectdata *conn, bool *done)
     nfsc->fh.data.data_len =
       mountres->mountres3_u.mountinfo.fhandle.fhandle3_len;
     /* free the handle in the client */
-    /* clnt_freeres(nfsc->mount_client,
-      (xdrproc_t) xdr_mountres3, (caddr_t) mountres); */
+    clnt_freeres(nfsc->mount_client,
+      (xdrproc_t) xdr_mountres3, (caddr_t) mountres);
+
+    /* start at the beginning of the file */
+    nfsc->offset = 0;
 
     fhs = nfs_fh3_to_string(nfsc->fh);
     printf("fh = %s\n", fhs);
+  }
+
+  /* we only have the filehandle so we're never done yet */
+  done = FALSE;
+
+  return result;
+}
+
+/* read the file */
+CURLcode nfs_doing(struct connectdata *conn, bool *dophase_done)
+{
+  CURLcode result = CURLE_OK;
+  struct nfs_conn *nfsc = &conn->proto.nfsc;
+  READ3res *res;
+  READ3args args;
+
+  args.file = nfsc->fh;
+  args.offset = nfsc->offset;
+  args.count = 8192;
+
+  res = nfsproc3_read_3(&args, nfsc->nfs_client);
+
+  if(res) {
+    if(res->status == NFS3_OK) {
+      /* write output */
+      Curl_client_write(conn, CLIENTWRITE_BODY,
+        res->READ3res_u.resok.data.data_val,
+        res->READ3res_u.resok.data.data_len);
+    }
+    if(res->READ3res_u.resok.eof) {
+      *dophase_done = TRUE;
+    }
+    else {
+      nfsc->offset += res->READ3res_u.resok.count;
+    }
   }
 
   return result;
