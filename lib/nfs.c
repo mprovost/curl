@@ -141,13 +141,14 @@ static CURLcode nfs_connect(struct connectdata *conn,
   int sock = conn->sock[FIRSTSOCKET];
   void *status = NULL;
 
+  /* We always support persistent connections on NFS */
+  connkeep(conn, "NFS default");
+
+  /* turn the socket into a sockaddr_in */
   if(0 == getsockname(
     conn->sock[FIRSTSOCKET], (struct sockaddr *) &sai, &size)) {
     size = sizeof(sai);
   }
-
-  /* We always support persistent connections on NFS */
-  connkeep(conn, "NFS default");
 
   /* connect to NFS */
   nfsc->nfs_client = clnttcp_create(
@@ -156,39 +157,40 @@ static CURLcode nfs_connect(struct connectdata *conn,
   if(nfsc->nfs_client == NULL) {
     result = CURLE_COULDNT_CONNECT;
   }
-
-  /* ping */
-  status = nfsproc3_null_3(NULL, nfsc->nfs_client);
-
-  /* now connect to the same server on the MOUNT port */
-
-  /* use the portmapper */
-  sai.sin_port = 0;
-
-  /* conn->sock[SECONDARYSOCKET] = socket(AF_INET, SOCK_STREAM, 0); */
-
-  sock = conn->sock[SECONDARYSOCKET];
-
-  /* bindresvport(sock, NULL); */
-
-  nfsc->mount_client = clnttcp_create(
-    &sai, MOUNTPROG, MOUNTVERS3, &sock, 0, 0);
-
-  if(nfsc->mount_client == NULL) {
-    result = CURLE_COULDNT_CONNECT;
+  else {
+    /* ping */
+    status = nfsproc3_null_3(NULL, nfsc->nfs_client);
   }
 
-  /*
-  getsockname(sock, (struct sockaddr *)&getaddr, &len);
-  printf("getsockname = %u -> %u\n", ntohs(getaddr.sin_port),
-    ntohs(sai.sin_port));
-  */
+  if(status == NULL) {
+    result = CURLE_COULDNT_CONNECT;
+  }
+  else {
+    /* now connect to the same server on the MOUNT port */
 
-  /* ping */
-  status = mountproc_null_3(NULL, nfsc->mount_client);
+    /* use the portmapper */
+    sai.sin_port = 0;
 
-  if(status) {
-    result = CURLE_OK;
+    sock = conn->sock[SECONDARYSOCKET];
+
+    nfsc->mount_client = clnttcp_create(
+      &sai, MOUNTPROG, MOUNTVERS3, &sock, 0, 0);
+
+    if(nfsc->mount_client == NULL) {
+      result = CURLE_COULDNT_CONNECT;
+    }
+    else {
+      /* ping */
+      status = mountproc_null_3(NULL, nfsc->mount_client);
+    }
+
+    if(status) {
+      result = CURLE_OK;
+      *done = TRUE;
+    }
+    else {
+      result = CURLE_COULDNT_CONNECT;
+    }
   }
 
   return result;
