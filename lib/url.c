@@ -4505,6 +4505,8 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
           protop = "smtp";
         else if(checkprefix("POP3.", conn->host.name))
           protop = "pop3";
+        else if(checkprefix("NFS.", conn->host.name))
+          protop = "nfs";
         else
           protop = "http";
       }

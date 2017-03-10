@@ -279,6 +279,7 @@ long proto2num(struct OperationConfig *config, long *val, const char *str)
     { "gopher", CURLPROTO_GOPHER },
     { "smb", CURLPROTO_SMB },
     { "smbs", CURLPROTO_SMBS },
+    { "nfs", CURLPROTO_NFS },
     { NULL, 0 }
   };
 
