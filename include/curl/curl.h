@@ -556,6 +556,7 @@ typedef enum {
   CURLE_SSL_INVALIDCERTSTATUS,   /* 91 - invalid certificate status */
   CURLE_HTTP2_STREAM,            /* 92 - stream error in HTTP/2 framing layer
                                     */
+  CURLE_NFS_ISDIR,               /* 93 - NFS filehandle is a directory */
   CURL_LAST /* never use! */
 } CURLcode;
 

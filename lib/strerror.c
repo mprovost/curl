@@ -308,6 +308,10 @@ curl_easy_strerror(CURLcode error)
   case CURLE_HTTP2_STREAM:
     return "Stream error in the HTTP/2 framing layer";
 
+  case CURLE_NFS_ISDIR:
+    /* same message as `cat` */
+    return "Is a directory";
+
     /* error codes not used by current libcurl */
   case CURLE_OBSOLETE20:
   case CURLE_OBSOLETE24:

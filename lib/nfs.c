@@ -314,6 +314,9 @@ CURLcode nfs_do(struct connectdata *conn, bool *done)
             clnt_freeres(nfsc->nfs_client,
               (xdrproc_t) xdr_READ3res, (caddr_t) res);
           }
+          else if(res->status == NFS3ERR_ISDIR) {
+            result = CURLE_NFS_ISDIR;
+          }
         }
       }
       while(res && res->status == NFS3_OK && res->READ3res_u.resok.eof == 0);
@@ -321,6 +324,9 @@ CURLcode nfs_do(struct connectdata *conn, bool *done)
     else {
       if(mountres->fhs_status == MNT3ERR_NOENT) {
         result = CURLE_REMOTE_FILE_NOT_FOUND;
+      }
+      else if(mountres->fhs_status == MNT3ERR_ACCES) {
+        result = CURLE_REMOTE_ACCESS_DENIED;
       }
     }
   }
